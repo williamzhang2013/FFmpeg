@@ -226,9 +226,9 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .props     = AV_CODEC_PROP_LOSSY | AV_CODEC_PROP_LOSSLESS,
     },
     {
-        .id        = AV_CODEC_ID_H265,
+        .id        = AV_CODEC_ID_HEVC,
         .type      = AVMEDIA_TYPE_VIDEO,
-        .name      = "h265",
+        .name      = "hevc",
         .long_name = NULL_IF_CONFIG_SMALL("H.265 / HEVC"),
         .props     = AV_CODEC_PROP_LOSSY | AV_CODEC_PROP_LOSSLESS,
     },
@@ -950,7 +950,7 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .id        = AV_CODEC_ID_DPX,
         .type      = AVMEDIA_TYPE_VIDEO,
         .name      = "dpx",
-        .long_name = NULL_IF_CONFIG_SMALL("DPX image"),
+        .long_name = NULL_IF_CONFIG_SMALL("DPX (Digital Picture Exchange) image"),
         .props     = AV_CODEC_PROP_INTRA_ONLY | AV_CODEC_PROP_LOSSLESS,
     },
     {

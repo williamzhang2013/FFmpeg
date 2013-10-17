@@ -379,6 +379,10 @@ static av_cold int mpeg_mux_init(AVFormatContext *ctx)
                 av_log(ctx, AV_LOG_WARNING, "VBV buffer size not set, muxing may fail\n");
                 stream->max_buffer_size = 230*1024; //FIXME this is probably too small as default
             }
+            if (stream->max_buffer_size > 1024 * 8191) {
+                av_log(ctx, AV_LOG_WARNING, "buffer size %d, too large\n", stream->max_buffer_size);
+                stream->max_buffer_size = 1024 * 8191;
+            }
             s->video_bound++;
             break;
         case AVMEDIA_TYPE_SUBTITLE:
@@ -424,6 +428,10 @@ static av_cold int mpeg_mux_init(AVFormatContext *ctx)
         bitrate += bitrate / 20;
         bitrate += 10000;
         s->mux_rate = (bitrate + (8 * 50) - 1) / (8 * 50);
+        if (s->mux_rate >= (1<<22)) {
+            av_log(ctx, AV_LOG_WARNING, "mux rate %d is too large\n", s->mux_rate);
+            s->mux_rate = (1<<22) - 1;
+        }
     }
 
     if (s->is_vcd) {
@@ -1146,7 +1154,7 @@ static int mpeg_mux_end(AVFormatContext *ctx)
 #define OFFSET(x) offsetof(MpegMuxContext, x)
 #define E AV_OPT_FLAG_ENCODING_PARAM
 static const AVOption options[] = {
-    { "muxrate", NULL, OFFSET(user_mux_rate), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
+    { "muxrate", NULL, OFFSET(user_mux_rate), AV_OPT_TYPE_INT, {.i64 = 0}, 0, ((1<<22) - 1) * (8 * 50), E },
     { "preload", "Initial demux-decode delay in microseconds.", OFFSET(preload),  AV_OPT_TYPE_INT, {.i64 = 500000}, 0, INT_MAX, E},
     { NULL },
 };

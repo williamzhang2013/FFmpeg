@@ -1294,7 +1294,7 @@ static void apply_loop_filter(Vp3DecodeContext *s, int plane, int ystart, int ye
     int width           = s->fragment_width[!!plane];
     int height          = s->fragment_height[!!plane];
     int fragment        = s->fragment_start        [plane] + ystart * width;
-    int stride          = s->current_frame.f->linesize[plane];
+    ptrdiff_t stride    = s->current_frame.f->linesize[plane];
     uint8_t *plane_data = s->current_frame.f->data    [plane];
     if (!s->flipped_image) stride = -stride;
     plane_data += s->data_offset[plane] + 8*ystart*stride;
@@ -1476,7 +1476,7 @@ static void render_slice(Vp3DecodeContext *s, int slice)
         uint8_t *output_plane = s->current_frame.f->data    [plane] + s->data_offset[plane];
         uint8_t *  last_plane = s->   last_frame.f->data    [plane] + s->data_offset[plane];
         uint8_t *golden_plane = s-> golden_frame.f->data    [plane] + s->data_offset[plane];
-        int stride            = s->current_frame.f->linesize[plane];
+        ptrdiff_t stride      = s->current_frame.f->linesize[plane];
         int plane_width       = s->width  >> (plane && s->chroma_x_shift);
         int plane_height      = s->height >> (plane && s->chroma_y_shift);
         int8_t (*motion_val)[2] = s->motion_val[!!plane];
@@ -1549,7 +1549,10 @@ static void render_slice(Vp3DecodeContext *s, int slice)
                             uint8_t *temp= s->edge_emu_buffer;
                             if(stride<0) temp -= 8*stride;
 
-                            s->vdsp.emulated_edge_mc(temp, motion_source, stride, 9, 9, src_x, src_y, plane_width, plane_height);
+                            s->vdsp.emulated_edge_mc(temp, stride,
+                                                     motion_source, stride,
+                                                     9, 9, src_x, src_y,
+                                                     plane_width, plane_height);
                             motion_source= temp;
                         }
                     }
@@ -2459,6 +2462,7 @@ static av_cold int theora_decode_init(AVCodecContext *avctx)
 
 AVCodec ff_theora_decoder = {
     .name                  = "theora",
+    .long_name             = NULL_IF_CONFIG_SMALL("Theora"),
     .type                  = AVMEDIA_TYPE_VIDEO,
     .id                    = AV_CODEC_ID_THEORA,
     .priv_data_size        = sizeof(Vp3DecodeContext),
@@ -2468,7 +2472,6 @@ AVCodec ff_theora_decoder = {
     .capabilities          = CODEC_CAP_DR1 | CODEC_CAP_DRAW_HORIZ_BAND |
                              CODEC_CAP_FRAME_THREADS,
     .flush                 = vp3_decode_flush,
-    .long_name             = NULL_IF_CONFIG_SMALL("Theora"),
     .init_thread_copy      = ONLY_IF_THREADS_ENABLED(vp3_init_thread_copy),
     .update_thread_context = ONLY_IF_THREADS_ENABLED(vp3_update_thread_context)
 };
@@ -2476,6 +2479,7 @@ AVCodec ff_theora_decoder = {
 
 AVCodec ff_vp3_decoder = {
     .name                  = "vp3",
+    .long_name             = NULL_IF_CONFIG_SMALL("On2 VP3"),
     .type                  = AVMEDIA_TYPE_VIDEO,
     .id                    = AV_CODEC_ID_VP3,
     .priv_data_size        = sizeof(Vp3DecodeContext),
@@ -2485,7 +2489,6 @@ AVCodec ff_vp3_decoder = {
     .capabilities          = CODEC_CAP_DR1 | CODEC_CAP_DRAW_HORIZ_BAND |
                              CODEC_CAP_FRAME_THREADS,
     .flush                 = vp3_decode_flush,
-    .long_name             = NULL_IF_CONFIG_SMALL("On2 VP3"),
     .init_thread_copy      = ONLY_IF_THREADS_ENABLED(vp3_init_thread_copy),
     .update_thread_context = ONLY_IF_THREADS_ENABLED(vp3_update_thread_context),
 };

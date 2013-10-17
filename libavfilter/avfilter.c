@@ -576,7 +576,7 @@ static const AVClass avfilter_class = {
     .option           = avfilter_options,
 };
 
-static int default_execute(AVFilterContext *ctx, action_func *func, void *arg,
+static int default_execute(AVFilterContext *ctx, avfilter_action_func *func, void *arg,
                            int *ret, int nb_jobs)
 {
     int i;
@@ -1092,8 +1092,9 @@ static int ff_filter_frame_needs_framing(AVFilterLink *link, AVFrame *frame)
                 return 0;
             }
             av_frame_copy_props(pbuf, frame);
-            pbuf->pts = frame->pts +
-                        av_rescale_q(inpos, samples_tb, link->time_base);
+            pbuf->pts = frame->pts;
+            if (pbuf->pts != AV_NOPTS_VALUE)
+                pbuf->pts += av_rescale_q(inpos, samples_tb, link->time_base);
             pbuf->nb_samples = 0;
         }
         nb_samples = FFMIN(insamples,

@@ -98,6 +98,29 @@ static int64_t wrap_timestamp(AVStream *st, int64_t timestamp)
 }
 
 MAKE_ACCESSORS(AVStream, stream, AVRational, r_frame_rate)
+MAKE_ACCESSORS(AVFormatContext, format, AVCodec *, video_codec)
+MAKE_ACCESSORS(AVFormatContext, format, AVCodec *, audio_codec)
+MAKE_ACCESSORS(AVFormatContext, format, AVCodec *, subtitle_codec)
+
+static AVCodec *find_decoder(AVFormatContext *s, AVStream *st, enum AVCodecID codec_id)
+{
+    if (st->codec->codec)
+        return st->codec->codec;
+
+    switch(st->codec->codec_type){
+    case AVMEDIA_TYPE_VIDEO:
+        if(s->video_codec)    return s->video_codec;
+        break;
+    case AVMEDIA_TYPE_AUDIO:
+        if(s->audio_codec)    return s->audio_codec;
+        break;
+    case AVMEDIA_TYPE_SUBTITLE:
+        if(s->subtitle_codec) return s->subtitle_codec;
+        break;
+    }
+
+    return avcodec_find_decoder(codec_id);
+}
 
 int av_format_get_probe_score(const AVFormatContext *s)
 {
@@ -2430,7 +2453,7 @@ static int has_codec_parameters(AVStream *st, const char **errmsg_ptr)
 }
 
 /* returns 1 or 0 if or if not decoded data was returned, or a negative error */
-static int try_decode_frame(AVStream *st, AVPacket *avpkt, AVDictionary **options)
+static int try_decode_frame(AVFormatContext *s, AVStream *st, AVPacket *avpkt, AVDictionary **options)
 {
     const AVCodec *codec;
     int got_picture = 1, ret = 0;
@@ -2444,8 +2467,7 @@ static int try_decode_frame(AVStream *st, AVPacket *avpkt, AVDictionary **option
     if (!avcodec_is_open(st->codec) && !st->info->found_decoder) {
         AVDictionary *thread_opt = NULL;
 
-        codec = st->codec->codec ? st->codec->codec :
-                                   avcodec_find_decoder(st->codec->codec_id);
+        codec = find_decoder(s, st, st->codec->codec_id);
 
         if (!codec) {
             st->info->found_decoder = -1;
@@ -2656,6 +2678,26 @@ int av_find_stream_info(AVFormatContext *ic)
 }
 #endif
 
+int ff_alloc_extradata(AVCodecContext *avctx, int size)
+{
+    int ret;
+
+    if (size < 0 || size >= INT32_MAX - FF_INPUT_BUFFER_PADDING_SIZE) {
+        avctx->extradata_size = 0;
+        return AVERROR(EINVAL);
+    }
+    avctx->extradata = av_malloc(size + FF_INPUT_BUFFER_PADDING_SIZE);
+    if (avctx->extradata) {
+        memset(avctx->extradata + size, 0, FF_INPUT_BUFFER_PADDING_SIZE);
+        avctx->extradata_size = size;
+        ret = 0;
+    } else {
+        avctx->extradata_size = 0;
+        ret = AVERROR(ENOMEM);
+    }
+    return ret;
+}
+
 int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
 {
     int i, count, ret = 0, j;
@@ -2696,8 +2738,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
                        avcodec_get_name(st->codec->codec_id));
             }
         }
-        codec = st->codec->codec ? st->codec->codec :
-                                   avcodec_find_decoder(st->codec->codec_id);
+        codec = find_decoder(ic, st, st->codec->codec_id);
 
         /* force thread count to 1 since the h264 decoder will not extract SPS
          *  and PPS to extradata during multi-threaded decoding */
@@ -2909,12 +2950,9 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
         if(st->parser && st->parser->parser->split && !st->codec->extradata){
             int i= st->parser->parser->split(st->codec, pkt->data, pkt->size);
             if (i > 0 && i < FF_MAX_EXTRADATA_SIZE) {
-                st->codec->extradata_size= i;
-                st->codec->extradata= av_malloc(st->codec->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
-                if (!st->codec->extradata)
+                if (ff_alloc_extradata(st->codec, i))
                     return AVERROR(ENOMEM);
                 memcpy(st->codec->extradata, pkt->data, st->codec->extradata_size);
-                memset(st->codec->extradata + i, 0, FF_INPUT_BUFFER_PADDING_SIZE);
             }
         }
 
@@ -2927,7 +2965,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
            least one frame of codec data, this makes sure the codec initializes
            the channel configuration and does not only trust the values from the container.
         */
-        try_decode_frame(st, pkt, (options && i < orig_nb_streams ) ? &options[i] : NULL);
+        try_decode_frame(ic, st, pkt, (options && i < orig_nb_streams ) ? &options[i] : NULL);
 
         st->codec_info_nb_frames++;
         count++;
@@ -2945,7 +2983,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
             /* flush the decoders */
             if (st->info->found_decoder == 1) {
                 do {
-                    err = try_decode_frame(st, &empty_pkt,
+                    err = try_decode_frame(ic, st, &empty_pkt,
                                             (options && i < orig_nb_streams) ?
                                             &options[i] : NULL);
                 } while (err > 0 && !has_codec_parameters(st, NULL));
@@ -3148,7 +3186,7 @@ int av_find_best_stream(AVFormatContext *ic,
         if (st->disposition & (AV_DISPOSITION_HEARING_IMPAIRED|AV_DISPOSITION_VISUAL_IMPAIRED))
             continue;
         if (decoder_ret) {
-            decoder = avcodec_find_decoder(st->codec->codec_id);
+            decoder = find_decoder(ic, st, st->codec->codec_id);
             if (!decoder) {
                 if (ret < 0)
                     ret = AVERROR_DECODER_NOT_FOUND;
@@ -4230,10 +4268,7 @@ void ff_generate_avci_extradata(AVStream *st)
     if (!size)
         return;
     av_freep(&st->codec->extradata);
-    st->codec->extradata_size = 0;
-    st->codec->extradata = av_mallocz(size + FF_INPUT_BUFFER_PADDING_SIZE);
-    if (!st->codec->extradata)
+    if (ff_alloc_extradata(st->codec, size))
         return;
     memcpy(st->codec->extradata, data, size);
-    st->codec->extradata_size = size;
 }

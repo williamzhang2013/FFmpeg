@@ -37,7 +37,6 @@ static int process_frame(FFFrameSync *fs)
         mainpic = s->process(ctx, mainpic, secondpic);
     ret = ff_filter_frame(ctx->outputs[0], mainpic);
     av_assert1(ret != AVERROR(EAGAIN));
-    s->frame_requested = 0;
     return ret;
 }
 
@@ -67,14 +66,8 @@ int ff_dualinput_init(AVFilterContext *ctx, FFDualInputContext *s)
     return ff_framesync_configure(&s->fs);
 }
 
-int ff_dualinput_filter_frame_main(FFDualInputContext *s,
+int ff_dualinput_filter_frame(FFDualInputContext *s,
                                    AVFilterLink *inlink, AVFrame *in)
-{
-    return ff_framesync_filter_frame(&s->fs, inlink, in);
-}
-
-int ff_dualinput_filter_frame_second(FFDualInputContext *s,
-                                     AVFilterLink *inlink, AVFrame *in)
 {
     return ff_framesync_filter_frame(&s->fs, inlink, in);
 }

@@ -33,15 +33,13 @@ typedef struct {
     FFFrameSync fs;
     FFFrameSyncIn second_input; /* must be immediately after fs */
 
-    uint8_t frame_requested;
     AVFrame *(*process)(AVFilterContext *ctx, AVFrame *main, const AVFrame *second);
     int shortest;               ///< terminate stream when the second input terminates
     int repeatlast;             ///< repeat last second frame
 } FFDualInputContext;
 
 int ff_dualinput_init(AVFilterContext *ctx, FFDualInputContext *s);
-int ff_dualinput_filter_frame_main(FFDualInputContext *s, AVFilterLink *inlink, AVFrame *in);
-int ff_dualinput_filter_frame_second(FFDualInputContext *s, AVFilterLink *inlink, AVFrame *in);
+int ff_dualinput_filter_frame(FFDualInputContext *s, AVFilterLink *inlink, AVFrame *in);
 int ff_dualinput_request_frame(FFDualInputContext *s, AVFilterLink *outlink);
 void ff_dualinput_uninit(FFDualInputContext *s);
 
